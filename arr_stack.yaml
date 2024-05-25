@@ -1,0 +1,71 @@
+version: "3"
+services:
+  gluetun:
+    image: qmcgaw/gluetun
+    container_name: gluetun
+    # line above must be uncommented to allow external containers to connect.
+    # See https://github.com/qdm12/gluetun-wiki/blob/main/setup/connect-a-container-to-gluetun.md#external-container-to-gluetun
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - 16881:6881
+      - 16881:6881/udp
+      - 18085:18085 # qbittorrent
+    volumes:
+      - /home/ubuntu/docker/arr-stack:/gluetun
+    environment:
+      # See https://github.com/qdm12/gluetun-wiki/tree/main/setup#setup
+      - VPN_SERVICE_PROVIDER=nordvpn
+      - VPN_TYPE=wireguard
+      # OpenVPN:
+      # - OPENVPN_USER=
+      # - OPENVPN_PASSWORD=
+      # Wireguard:
+      - WIREGUARD_PRIVATE_KEY=FLXQ3tbixmmtd2eIgjpMGNP5dO1cButocfG3D072bYo= # See https://github.com/qdm12/gluetun-wiki/blob/main/setup/providers/nordvpn.md#obtain-your-wireguard-private-key
+      - WIREGUARD_ADDRESSES=10.5.0.2/32
+      # Timezone for accurate log times
+      - TZ=Asia/Kolkata
+      # Server list updater
+      # See https://github.com/qdm12/gluetun-wiki/blob/main/setup/servers.md#update-the-vpn-servers-list
+      - UPDATER_PERIOD=24h
+    restart: always
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent
+    container_name: qbittorrent
+    network_mode: "service:gluetun"
+    environment:
+      - PUID=3000
+      - PGID=3000
+      - TZ=Asia/Kolkata
+      - WEBUI_PORT=18085
+    volumes:
+      - /home/harshit/qbt_config:/config
+      - /mnt/nfs/Media:/downloads
+    depends_on:
+      - gluetun
+    restart: always
+
+  jellyfin:
+    image: lscr.io/linuxserver/jellyfin:latest
+    container_name: jellyfin
+    environment:
+      - PUID=3000
+      - PGID=3000
+      - TZ=Etc/UTC
+      - JELLYFIN_PublishedServerUrl=192.168.29.183:18096 #optional
+    ports:
+      - 18096:8096
+    volumes:
+      - /home/harshit/docker/jellyfin:/config
+      - /mnt/nfs/Media:/media
+    restart: always
+  
+  jellyfinui:
+    image: jellyfin/jellyfin-vue:unstable.2024-05-23.f2dce13
+    container_name: jellyfinui
+    ports:
+      - 30013:80
+    restart: always
